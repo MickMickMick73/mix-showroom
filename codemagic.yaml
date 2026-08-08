@@ -1,4 +1,4 @@
-# MiX Showroom — portable portfolio for iPhone (TestFlight)
+# MiX Showroom â€” portable portfolio for iPhone (TestFlight)
 # Env group "global": same ASC signing secrets as Seed to Supper / SpeakEasy
 
 workflows:
@@ -27,11 +27,27 @@ workflows:
       - name: Install pods
         script: |
           set -e
-          if [ -f ios/Podfile ]; then
-            cd ios
-            test -f Flutter/Generated.xcconfig
-            pod install --repo-update
+          if [ ! -f ios/Podfile ]; then
+            echo "No Podfile — skip"
+            exit 0
           fi
+          # Strip UTF-8 BOM that Windows editors sometimes add (breaks CocoaPods/xcodeproj)
+          python3 - <<'PY'
+          from pathlib import Path
+          for p in Path("ios").rglob("*"):
+              if not p.is_file():
+                  continue
+              if p.suffix.lower() not in {".pbxproj", ".plist", ".xcconfig", ".rb", ".swift", ""} and p.name not in {"Podfile", "Podfile.lock"}:
+                  if p.suffix.lower() not in {".pbxproj", ".plist", ".xcconfig"} and p.name not in {"Podfile", "Podfile.lock"}:
+                      continue
+              data = p.read_bytes()
+              if data.startswith(b"\xef\xbb\xbf"):
+                  p.write_bytes(data[3:])
+                  print("stripped BOM", p)
+          PY
+          cd ios
+          test -f Flutter/Generated.xcconfig
+          pod install --repo-update
       - name: Set up keychain
         script: keychain initialize
       - name: Fetch signing files
